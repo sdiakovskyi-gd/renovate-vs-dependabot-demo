@@ -1,0 +1,66 @@
+# Dependabot, configured as well as Dependabot can be configured.
+# This is deliberately NOT a strawman: grouping, scheduling, limits and
+# separate security/version streams are all enabled. The README explains
+# what is still missing relative to renovate.json.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Kyiv
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - dependabot
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: scope
+    groups:
+      # Every group below had to be written by hand. Renovate gets the
+      # @typescript-eslint/* grouping for free from the `group:monorepos` preset.
+      eslint:
+        patterns:
+          - "eslint"
+          - "@typescript-eslint/*"
+      types:
+        patterns:
+          - "@types/*"
+      dev-minor-and-patch:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+      prod-minor-and-patch:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Kyiv
+    labels:
+      - dependencies
+      - dependabot
+      - docker
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Kyiv
+    labels:
+      - dependencies
+      - dependabot
+      - github-actions
