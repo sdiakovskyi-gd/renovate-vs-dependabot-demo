@@ -7,7 +7,7 @@ FROM node:20.11-alpine
 # Renovate picks them up via the `customManagers` entry in renovate.json.
 # Dependabot has no equivalent feature.
 # renovate: datasource=npm depName=pnpm
-ARG PNPM_VERSION=8.6.0
+ARG PNPM_VERSION=10.34.4
 # renovate: datasource=github-releases depName=hadolint packageName=hadolint/hadolint
 ARG HADOLINT_VERSION=2.12.0
 # ---------------------------------------------------------------------------
