@@ -1,14 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-
   "extends": [
     "config:recommended",
     ":dependencyDashboard",
     "group:monorepos"
   ],
-
   "timezone": "Europe/Kyiv",
-
   "description": [
     "DEMO CONFIG. Every block below is annotated so the repo doubles as documentation.",
     "config:recommended    - Renovate's maintained baseline preset. Dependabot has no preset system at all.",
@@ -17,16 +14,14 @@
     "group:monorepos       - auto-groups packages published from the same monorepo (e.g. @typescript-eslint/*)",
     "                        from a community-maintained list. Zero per-package config."
   ],
-
   "dependencyDashboardTitle": "🤖 Renovate Dependency Dashboard",
-
   "prConcurrentLimit": 20,
   "prHourlyLimit": 0,
-
-  "labels": ["dependencies", "renovate"],
-
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
   "osvVulnerabilityAlerts": true,
-
   "vulnerabilityAlerts": {
     "description": [
       "Security updates bypass the normal schedule and jump the queue.",
@@ -34,10 +29,14 @@
       "so this works even where GitHub's alert pipeline is unavailable or disabled."
     ],
     "enabled": true,
-    "labels": ["security", "dependencies"],
-    "schedule": ["at any time"]
+    "labels": [
+      "security",
+      "dependencies"
+    ],
+    "schedule": [
+      "at any time"
+    ]
   },
-
   "lockFileMaintenance": {
     "description": [
       "Weekly PR that regenerates package-lock.json from scratch, refreshing TRANSITIVE",
@@ -45,65 +44,120 @@
       "it only bumps transitives when an advisory names them."
     ],
     "enabled": true,
-    "schedule": ["* 0-5 * * 1"],
+    "schedule": [
+      "* 0-5 * * 1"
+    ],
     "commitMessageAction": "Refresh lockfile",
-    "labels": ["dependencies", "lockfile-maintenance"]
+    "labels": [
+      "dependencies",
+      "lockfile-maintenance"
+    ]
   },
-
   "customManagers": [
     {
       "description": "Update `ARG <TOOL>_VERSION=` lines in the Dockerfile using inline `# renovate:` annotations. No built-in manager - and no Dependabot feature - can do this.",
       "customType": "regex",
-      "managerFilePatterns": ["/(^|/)Dockerfile[^/]*$/"],
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile[^/]*$/"
+      ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-zA-Z0-9-._]+?) depName=(?<depName>[^\\s]+?)(?: packageName=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?\\s+ARG [A-Za-z0-9_]+?_VERSION=[\"']?(?<currentValue>.+?)[\"']?\\s"
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
     }
   ],
-
   "packageRules": [
     {
-      "description": "devDependency patch+minor automerges itself once CI is green. Dependabot needs a hand-written workflow calling `gh pr merge --auto` to approximate this.",
-      "matchDepTypes": ["devDependencies"],
-      "matchUpdateTypes": ["patch", "minor"],
+      "description": "LANE 1 - devDependency non-major. One PR per week, automerged once CI is green. You are never meant to look at this PR.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "pin"
+      ],
+      "groupName": "devDependencies (non-major)",
+      "groupSlug": "dev-non-major",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
       "automerge": true,
       "automergeType": "pr",
-      "labels": ["dependencies", "automerge"]
+      "labels": [
+        "dependencies",
+        "automerge"
+      ]
     },
     {
-      "description": "Explicit group so `eslint` itself rides along with the @typescript-eslint/* monorepo group. One PR instead of three.",
-      "matchPackageNames": [
-        "eslint",
-        "@typescript-eslint/**"
+      "description": "LANE 2 - production non-major. One reviewable PR per week, one CI run.",
+      "matchManagers": [
+        "npm"
       ],
-      "groupName": "eslint",
-      "labels": ["dependencies", "linting"]
+      "matchDepTypes": [
+        "dependencies"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "pin"
+      ],
+      "groupName": "production (non-major)",
+      "groupSlug": "prod-non-major",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "runtime"
+      ]
     },
     {
-      "description": "Majors are never grouped and never automerged - they get their own reviewable PR with a loud label.",
-      "matchUpdateTypes": ["major"],
+      "description": "LANE 3 - non-npm managers have no depType, so Lanes 1-2 cannot match them. Without this rule Docker/Actions/regex updates stay as individual PRs. Most common grouping mistake.",
+      "matchManagers": [
+        "dockerfile",
+        "github-actions",
+        "custom.regex"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest"
+      ],
+      "groupName": "infra (non-major)",
+      "groupSlug": "infra-non-major",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "infra"
+      ]
+    },
+    {
+      "description": "LANE 4 - majors are the one thing you must NOT group. dependencyDashboardApproval keeps them silent until you tick their checkbox: quiet without losing isolation. Grouping majors is exactly what broke Dependabot PRs #3 and #5.",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true,
       "automerge": false,
-      "labels": ["dependencies", "major"],
-      "prPriority": -1
+      "labels": [
+        "dependencies",
+        "major"
+      ]
     },
     {
-      "description": "Per-package scheduling: the noisy toolchain packages are batched into one weekly PR instead of trickling in. Dependabot schedules are per-ecosystem, not per-package.",
-      "matchPackageNames": ["typescript", "jest", "@types/**"],
-      "groupName": "toolchain",
-      "schedule": ["* 0-5 * * 1"],
-      "labels": ["dependencies", "toolchain"]
-    },
-    {
-      "description": "prPriority lifts the app's runtime-critical packages to the top of the PR queue when the concurrent limit bites. Dependabot has no ordering control at all.",
-      "matchPackageNames": ["axios", "express", "jsonwebtoken", "lodash"],
-      "prPriority": 5,
-      "labels": ["dependencies", "runtime"]
-    },
-    {
-      "description": "Pin GitHub Action digests for supply-chain safety, still tracking the tag.",
-      "matchManagers": ["github-actions"],
-      "labels": ["dependencies", "github-actions"]
+      "description": "prPriority only - lifts runtime-critical packages up the queue. Deliberately last so it does not override lane labels or grouping.",
+      "matchPackageNames": [
+        "axios",
+        "express",
+        "jsonwebtoken",
+        "lodash"
+      ],
+      "prPriority": 5
     }
   ]
 }
