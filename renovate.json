@@ -24,14 +24,15 @@
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "description": [
-      "Security updates are grouped, but split by update type via a Handlebars template.",
-      "One combined PR would mix breaking majors (flask 3, urllib3 2, werkzeug 3) with safe",
-      "patches, go permanently red, and block every other CVE fix behind it. Two groups is",
-      "the smallest count that keeps the safe fixes mergeable."
+      "Security fixes are grouped per MANAGER, not per update type.",
+      "Splitting by updateType produced two internally inconsistent requirements.txt files:",
+      "one had flask 2.0.3 (which caps Jinja2<3.1) beside jinja2 3.1.6, the other had",
+      "flask 3.1.3 (which needs Jinja2>=3.1.2) beside jinja2 3.0.3. Both failed to resolve.",
+      "A pin-exact manifest has to move as a unit, so the manager is the correct grouping key."
     ],
     "enabled": true,
-    "groupName": "security {{#if (equals updateType 'major')}}(major){{else}}(non-major){{/if}}",
-    "groupSlug": "security-{{#if (equals updateType 'major')}}major{{else}}non-major{{/if}}",
+    "groupName": "security ({{{manager}}})",
+    "groupSlug": "security-{{{manager}}}",
     "labels": [
       "security",
       "dependencies"
@@ -87,6 +88,21 @@
       "prPriority": 10,
       "labels": [
         "dependencies"
+      ]
+    },
+    {
+      "description": "Python has no lockfile and pins exact versions, so a partial bump leaves requirements.txt unresolvable. Every pip update - any type - moves as one group. npm and gomod do not need this because their lockfiles are regenerated on update.",
+      "matchManagers": [
+        "pip_requirements"
+      ],
+      "groupName": "python",
+      "groupSlug": "python",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "python"
       ]
     },
     {
@@ -193,6 +209,13 @@
         "lodash"
       ],
       "prPriority": 5
+    },
+    {
+      "description": "typescript is capped because @typescript-eslint/parser 8.x declares peer typescript \">=4.8.4 <6.1.0\". Without this cap the grouped devDependency-majors PR fails npm ci with ERESOLVE and can never merge. Remove the cap once typescript-eslint supports TS 7.",
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<6.1.0"
     }
   ],
   "minimumReleaseAge": "7 days"
