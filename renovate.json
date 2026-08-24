@@ -15,7 +15,7 @@
     "                        from a community-maintained list. Zero per-package config."
   ],
   "dependencyDashboardTitle": "🤖 Renovate Dependency Dashboard",
-  "prConcurrentLimit": 20,
+  "prConcurrentLimit": 10,
   "prHourlyLimit": 0,
   "labels": [
     "dependencies",
@@ -24,11 +24,14 @@
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "description": [
-      "Security updates bypass the normal schedule and jump the queue.",
-      "osvVulnerabilityAlerts:true (above) sources advisories from osv.dev directly,",
-      "so this works even where GitHub's alert pipeline is unavailable or disabled."
+      "Security updates are grouped, but split by update type via a Handlebars template.",
+      "One combined PR would mix breaking majors (flask 3, urllib3 2, werkzeug 3) with safe",
+      "patches, go permanently red, and block every other CVE fix behind it. Two groups is",
+      "the smallest count that keeps the safe fixes mergeable."
     ],
     "enabled": true,
+    "groupName": "security {{#if (equals updateType 'major')}}(major){{else}}(non-major){{/if}}",
+    "groupSlug": "security-{{#if (equals updateType 'major')}}major{{else}}non-major{{/if}}",
     "labels": [
       "security",
       "dependencies"
@@ -69,7 +72,25 @@
   ],
   "packageRules": [
     {
-      "description": "LANE 1 - devDependency non-major. One PR per week, automerged once CI is green. You are never meant to look at this PR.",
+      "description": "LANE 1 - everything non-major, one PR. Collapsed across npm/gomod/pip/docker/actions/regex: acceptable because one team owns this repo. Split by language again if ownership is split.",
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "pin",
+        "digest"
+      ],
+      "groupName": "all non-major",
+      "groupSlug": "all-non-major",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "prPriority": 10,
+      "labels": [
+        "dependencies"
+      ]
+    },
+    {
+      "description": "LANE 2 - npm devDependencies stay in their own PR because this one automerges and nobody reads it. Overrides Lane 1 for devDeps.",
       "matchManagers": [
         "npm"
       ],
@@ -86,6 +107,7 @@
       "schedule": [
         "* 0-5 * * 1"
       ],
+      "prPriority": 10,
       "automerge": true,
       "automergeType": "pr",
       "labels": [
@@ -94,107 +116,20 @@
       ]
     },
     {
-      "description": "LANE 2 - production non-major. One reviewable PR per week, one CI run.",
-      "matchManagers": [
-        "npm"
-      ],
-      "matchDepTypes": [
-        "dependencies"
-      ],
-      "matchUpdateTypes": [
-        "patch",
-        "minor",
-        "pin"
-      ],
-      "groupName": "production (non-major)",
-      "groupSlug": "prod-non-major",
-      "schedule": [
-        "* 0-5 * * 1"
-      ],
-      "labels": [
-        "dependencies",
-        "runtime"
-      ]
-    },
-    {
-      "description": "LANE 2b - Go non-major. Its own group because a different team owns it: grouping should follow ownership boundaries, not just reduce the count.",
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchUpdateTypes": [
-        "patch",
-        "minor",
-        "digest"
-      ],
-      "groupName": "go (non-major)",
-      "groupSlug": "go-non-major",
-      "schedule": [
-        "* 0-5 * * 1"
-      ],
-      "labels": [
-        "dependencies",
-        "go"
-      ]
-    },
-    {
-      "description": "LANE 2c - Python non-major. pip_requirements here; poetry/pep621/pip-compile would be matched the same way.",
-      "matchManagers": [
-        "pip_requirements",
-        "poetry",
-        "pep621",
-        "pip-compile"
-      ],
-      "matchUpdateTypes": [
-        "patch",
-        "minor"
-      ],
-      "groupName": "python (non-major)",
-      "groupSlug": "python-non-major",
-      "schedule": [
-        "* 0-5 * * 1"
-      ],
-      "labels": [
-        "dependencies",
-        "python"
-      ]
-    },
-    {
-      "description": "LANE 3 - non-npm managers have no depType, so Lanes 1-2 cannot match them. Without this rule Docker/Actions/regex updates stay as individual PRs. Most common grouping mistake.",
-      "matchManagers": [
-        "dockerfile",
-        "github-actions",
-        "custom.regex"
-      ],
-      "matchUpdateTypes": [
-        "patch",
-        "minor",
-        "digest"
-      ],
-      "groupName": "infra (non-major)",
-      "groupSlug": "infra-non-major",
-      "schedule": [
-        "* 0-5 * * 1"
-      ],
-      "labels": [
-        "dependencies",
-        "infra"
-      ]
-    },
-    {
-      "description": "LANE 4 - majors held behind a human checkbox while still fresh, and soaked 21 days. Grouping majors is what broke Dependabot PRs #3 and #5, so they stay isolated.",
+      "description": "LANE 3 - baseline for every major: isolated, soaked 21 days, held behind a dashboard checkbox.",
       "matchUpdateTypes": [
         "major"
       ],
+      "minimumReleaseAge": "21 days",
       "dependencyDashboardApproval": true,
       "automerge": false,
       "labels": [
         "dependencies",
         "major"
-      ],
-      "minimumReleaseAge": "21 days"
+      ]
     },
     {
-      "description": "LANE 5 - ESCALATION. Once the version we are actually running is more than 3 months old, stop waiting for someone to tick a box: open the PR automatically. Nothing can sit forgotten in the queue forever. Still no automerge - a human reviews it, they just no longer have to remember it exists.",
+      "description": "LANE 4 - ESCALATION. Once the version actually in use is over 3 months old the checkbox gate lifts by itself, so nothing rots in the queue unnoticed. Still reviewed, never automerged.",
       "matchUpdateTypes": [
         "major"
       ],
@@ -209,7 +144,7 @@
       "prPriority": -5
     },
     {
-      "description": "LANE 6 - npm devDependency majors bump themselves after a 30-day soak. Now genuinely gated: ci.yml runs typecheck AND lint, so a breaking typescript or eslint major fails the build instead of merging green. Runtime dependencies are deliberately excluded - jsonwebtoken 8 to 9 typechecks clean and still changes signature-verification defaults at runtime.",
+      "description": "LANE 5 - npm devDependency majors, grouped into ONE PR and automerged after a 30-day soak. Grouping majors is normally wrong; it is defensible here only because CI runs lint AND typecheck against them, so a breaking eslint or typescript major fails the build. Runtime deps are excluded: jsonwebtoken 8 to 9 typechecks clean and still changes signature-verification defaults at runtime.",
       "matchManagers": [
         "npm"
       ],
@@ -219,8 +154,10 @@
       "matchUpdateTypes": [
         "major"
       ],
-      "dependencyDashboardApproval": false,
       "minimumReleaseAge": "30 days",
+      "groupName": "devDependency majors",
+      "groupSlug": "dev-major",
+      "dependencyDashboardApproval": false,
       "automerge": true,
       "automergeType": "pr",
       "labels": [
@@ -230,7 +167,7 @@
       ]
     },
     {
-      "description": "prPriority only - lifts runtime-critical packages up the queue. Deliberately last so it does not override lane labels or grouping.",
+      "description": "prPriority only - runtime-critical packages surface first when the concurrent limit bites.",
       "matchPackageNames": [
         "axios",
         "express",
