@@ -216,7 +216,7 @@
       ]
     },
     {
-      "description": "Python is the one ecosystem that must NOT be split. requirements.txt pins exact versions and has no lockfile, so every pip update - major included - travels in one group. This deliberately overrides the major-isolation rules above; coherence beats isolation when the resolver gets no say. Adopting pip-compile or uv would remove the need for this rule.",
+      "description": "Python is the one ecosystem that must NOT be split. requirements.txt pins exact versions and has no lockfile, so a partial bump leaves it unresolvable. groupName alone is not enough: separateMajorMinor defaults to true, which puts majors on their own branch under the same group name and reproduces the split. separateMajorMinor:false forces every pip update - major included - into one branch. Adopting pip-compile or uv would remove the need for this rule.",
       "matchManagers": [
         "pip_requirements"
       ],
@@ -228,7 +228,8 @@
       "labels": [
         "dependencies",
         "python"
-      ]
+      ],
+      "separateMajorMinor": false
     },
     {
       "description": "typescript is capped because @typescript-eslint/parser 8.x declares peer typescript \">=4.8.4 <6.1.0\". Without the cap Renovate keeps raising a typescript 7 PR that can never pass npm ci. Suppressing an unresolvable update is better than shipping a permanently red PR. Remove when typescript-eslint supports v7.",

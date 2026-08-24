@@ -102,3 +102,78 @@ The honest claim is narrower and stronger:
 > Renovate's defaults were safe here, and where they aren't, there are knobs.
 > Dependabot's defaults broke the build, and some of the knobs to fix that
 > (dashboard queue, custom managers, lockfile maintenance) do not exist.
+
+---
+
+# Round 2 — the grouping experiment
+
+After the snapshot above, `renovate.json` was rewritten several times to drive PR
+count down. What that exercise actually taught is recorded here, because the
+failures were more instructive than the successes.
+
+## Collapsing to 3 PRs worked, then broke
+
+Aggressive grouping took Renovate from 25 open PRs to 3. All three were red.
+
+| PR | Failure |
+|---|---|
+| `security (non-major)` | `pip` `ResolutionImpossible` |
+| `security (major)` | `pip` `ResolutionImpossible` |
+| `devDependency majors` | `npm ci` `ERESOLVE` |
+
+### Cause 1 — splitting a pin-exact manifest
+
+Security fixes were grouped by update type. Because `requirements.txt` pins exact
+versions and has no lockfile, each half was internally inconsistent:
+
+```
+security (non-major)   flask==2.0.3  (caps Jinja2<3.1)      + jinja2==3.1.6
+security (major)       flask==3.1.3  (needs Jinja2>=3.1.2)  + jinja2==3.0.3
+```
+
+Verified locally that all six Python packages bumped **together** resolve cleanly and
+`worker.py` still imports under `flask 3` / `urllib3 2`.
+
+A second, subtler version of the same bug survived the first fix: setting `groupName`
+to a single value is **not** enough, because `separateMajorMinor` defaults to `true`
+and puts majors on their own branch under the same group name. `separateMajorMinor:
+false` on the pip rule is what actually forces one branch.
+
+### Cause 2 — grouping majors
+
+```
+npm error Found: typescript@7.0.2
+npm error peer typescript@">=4.8.4 <6.1.0" from @typescript-eslint/parser@8.65.0
+```
+
+One unadoptable major took seven unrelated updates down with it. TypeScript 7 is
+ahead of its ecosystem; no grouping or waiting fixes that. `allowedVersions: "<6.1.0"`
+suppresses the update so the PR is never raised.
+
+## The rule that came out of it
+
+> Group by the unit the dependency resolver operates on. Never group majors.
+> Suppress updates that cannot resolve rather than shipping a permanently red PR.
+
+| Ecosystem | Safe to split? | Why |
+|---|---|---|
+| npm | ✅ | `package-lock.json` regenerated per update |
+| gomod | ✅ | resolves transitively |
+| **pip (`requirements.txt`)** | ❌ | exact pins, no resolver step |
+| Maven | ❌ | no lockfile |
+
+The production fix for Python is to adopt `pip-compile`, `uv` or Poetry so Renovate
+regenerates a full lock and partial bumps stop being representable.
+
+## Where it landed
+
+The final config favours **mergeable over minimal**: per-package security PRs
+(Python excepted), non-major grouped per manager, majors isolated behind an
+expiring approval gate. More PRs than the 3-PR experiment, and they merge.
+
+## A migration cost worth knowing
+
+Changing grouping on a repo that already has open PRs leaves duplicates behind.
+Renovate does not treat "this package moved into a different group" as making the
+old branch stale while its PR is still open, so old and new coexist until the old
+ones are closed by hand. Budget for one cleanup pass per grouping change.

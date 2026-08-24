@@ -100,6 +100,35 @@ cleanly and still changes signature-verification defaults at runtime.
 and #5 into a permanent red state here — a breaking major folded into a batch,
 with no way to tell which member broke the build. Gate them; don't batch them.
 
+### Grouping key: use the resolver unit, not convenience
+
+Collapsing everything into one PR is not the goal — a PR that cannot be merged is
+worth nothing. Group by **the unit the dependency resolver operates on**:
+
+| Ecosystem | Safe to split? | Why |
+|---|---|---|
+| npm | ✅ | `package-lock.json` regenerated per update |
+| gomod | ✅ | resolves transitively |
+| **pip (`requirements.txt`)** | ❌ | exact pins, no resolver step at update time |
+| Maven | ❌ | no lockfile |
+
+Splitting a pin-exact `requirements.txt` across two PRs produced two manifests that
+could not install — `flask 2.0.3` caps `Jinja2<3.1`, `flask 3.1.3` requires
+`Jinja2>=3.1.2`, so neither half was internally consistent. Python must move as one
+group. The real fix in a production repo is to adopt a resolver — `pip-compile`,
+`uv` or Poetry — so Renovate regenerates a full lock and partial bumps stop being
+representable.
+
+**Never group majors.** Grouping a breaking major into a batch is what leaves
+Dependabot PRs #3 and #5 permanently red in `RESULTS.md`, and it did the same to a
+Renovate group here: `typescript 7.0.2` collided with
+`peer typescript ">=4.8.4 <6.1.0"` from `@typescript-eslint/parser@8.65.0` and took
+seven unrelated updates down with it. Isolate majors and gate them instead.
+
+**Suppress updates that cannot resolve.** When an ecosystem is not ready — TypeScript
+7 ahead of typescript-eslint — `allowedVersions` stops the PR being raised at all.
+A suppressed update beats a permanently red PR that trains people to ignore CI.
+
 ### Projected at your scale
 
 Rough model, 200 repos on the four-lane config:
@@ -381,7 +410,125 @@ self-hosted product:
 
 ---
 
-## 7. Honest limits
+## 7. Where Renovate actually wins
+
+Dependabot in 2026 is a real tool, not the one people remember from 2022. Before
+claiming anything, here is what it **can** do, verified against GitHub's current
+options reference:
+
+- `groups` — grouped version updates, with `applies-to: security-updates` so
+  **security fixes can be grouped too**
+- `cooldown` — a release soak, with `default-days`, `semver-major-days`,
+  `semver-minor-days`, `semver-patch-days` granularity
+- `directories` — multiple paths per ecosystem, with glob support
+- `schedule`, `open-pull-requests-limit`, `ignore` (including `versions`),
+  `labels`, `commit-message`, `target-branch`, `vendor`, `registries`
+- transitive security bumps for npm
+
+Any comparison that ignores the above is dishonest and will be caught in the room.
+The list below is what survives it.
+
+### Tier 1 — capability gaps: Dependabot cannot do these at any configuration
+
+| Capability | Renovate | Evidence in this repo |
+|---|---|---|
+| **Native automerge** | `"automerge": true` on a rule | PR #19 merged by `app/renovate` at 07:28:55Z with no workflow. Dependabot needs a hand-written Action calling `gh pr merge --auto` |
+| **A queue you control** | Dependency Dashboard + `dependencyDashboardApproval` | Issue #27. Updates exist, are tracked, and raise no PR until a checkbox is ticked. Dependabot's only states are *open a PR* or *`ignore` forever* |
+| **Updating non-manifest files** | `customManagers` regex | PRs #17/#18 update `ARG PNPM_VERSION` and `ARG HADOLINT_VERSION` in the `Dockerfile`. Dependabot updated the `FROM` line and **ignored both ARGs entirely** |
+| **Lockfile maintenance** | `lockFileMaintenance` | Scheduled PR that refreshes transitives with **no manifest change**. Dependabot only moves a transitive when an advisory names it |
+| **Package replacement** | `replacements:all` preset | `services/go-api` pins the abandoned `dgrijalva/jwt-go`; Renovate proposes swapping it for `golang-jwt/jwt`. Dependabot can only offer newer versions of a package you already depend on |
+| **Shareable config presets** | `"extends": ["local>myorg/renovate-config"]` | One preset repo governs 200 repos. Dependabot has no preset mechanism — org policy means 200 copies of YAML kept in sync by hand |
+| **PR priority ordering** | `prPriority` | Runtime packages surface first when limits bite. Dependabot has no ordering control |
+| **Age-based rules** | `matchCurrentAge: "> 3 months"` | The expiring approval gate: majors wait behind a checkbox while fresh, then open by themselves once the version in use is stale. No Dependabot equivalent |
+| **Computed group names** | Handlebars in `groupName`/`groupSlug` | See Tier 2 — this is the one that solved a real problem here |
+| **Merge Confidence** | badges free, Workflows paid | Age + adoption + pass-rate per version pair, across `go`, `maven`, `npm`, `nuget`, `packagist`, `pypi`, `rubygems` |
+| **Platform independence** | GitLab, Bitbucket, Gitea, Azure DevOps, self-hosted | Dependabot is GitHub-only |
+| **Running your own code post-update** | `postUpgradeTasks` (self-hosted) | The only native route for putting Xray output into the PR body |
+
+### Tier 2 — expressiveness: both can, but only one can say it once
+
+This is the difference people underrate, and it is the one this repo demonstrated
+by accident.
+
+Grouping is not "on or off". The correct grouping key is **the unit the resolver
+operates on**, and that differs per ecosystem in the same repo:
+
+| Ecosystem | Safe to split? | Why |
+|---|---|---|
+| npm | ✅ | `package-lock.json` is regenerated per update |
+| gomod | ✅ | resolves transitively |
+| **pip (`requirements.txt`)** | ❌ | exact pins, no resolver step |
+| Maven | ❌ | no lockfile |
+
+We learned this the hard way. Security fixes were grouped by update type, which
+produced two `requirements.txt` files that could not install:
+
+```
+PR A   flask==2.0.3   (caps Jinja2<3.1)      + jinja2==3.1.6   -> ResolutionImpossible
+PR B   flask==3.1.3   (needs Jinja2>=3.1.2)  + jinja2==3.0.3   -> ResolutionImpossible
+```
+
+The rule that fixes it is "one PR per package, except Python, which moves as a
+unit". In Renovate that is **one line**, because `groupName` accepts Handlebars:
+
+```json
+{
+  "vulnerabilityAlerts": {
+    "groupName": "security ({{#if (equals manager \"pip_requirements\")}}python{{else}}{{{depName}}}{{/if}})"
+  }
+}
+```
+
+Dependabot cannot express that at all. `groups` takes literal patterns, so the
+same policy means enumerating every Python package by hand in one group and
+accepting per-package behaviour everywhere else — and re-editing it every time a
+dependency is added.
+
+The same applies to the other conditional rules this repo relies on: "majors, but
+only once the installed version is over three months old", "devDependency majors
+only, after a 30-day soak, automerged", "cap `typescript` below the peer range
+`@typescript-eslint` declares". Each is one `packageRules` entry. None has a
+Dependabot equivalent.
+
+**The honest framing:** Dependabot config is a list of per-ecosystem settings.
+Renovate config is a rule engine with matchers, inheritance and templates. For a
+handful of repos the difference is noise. For a fleet with a policy that must hold
+across ecosystems, it is the whole argument.
+
+### Tier 3 — do NOT claim these; they are parity
+
+- grouped version updates
+- grouped **security** updates (`applies-to: security-updates`)
+- release soak (`cooldown` vs `minimumReleaseAge`) — Renovate's is per-package
+  rather than per-ecosystem, which is a granularity difference, not a capability one
+- scheduling, PR limits, ignore lists, labels, commit message control
+- multiple directories per ecosystem (`directories` supports globs)
+- transitive security updates for npm
+- language coverage — Dependabot supports Go, Python, Java, Ruby, npm too
+
+### Tier 4 — where Dependabot genuinely wins
+
+- **Zero setup.** It is already in the repo. No app install, no third-party access
+  to private code, no security review.
+- **No SaaS dependency** if you would otherwise use Renovate's hosted app. Mend
+  reading your private repositories is a real procurement conversation; Dependabot
+  is first-party GitHub.
+- **Fewer moving parts.** Self-hosting Renovate means you own upgrades, runners and
+  credential rotation.
+- **Defaults are not the argument.** The four red Dependabot PRs recorded in
+  `RESULTS.md` came from grouping a breaking major into a batch. Adding
+  `update-types` filters to its groups would have prevented them. That is a
+  configuration mistake, not a capability gap, and saying otherwise invites a
+  correction that costs you the room.
+
+### The one-sentence version
+
+> Dependabot can group, schedule, soak and limit. It cannot automerge, cannot hold
+> work in a queue, cannot see a version that is not in a manifest, cannot refresh a
+> lockfile on its own, cannot replace an abandoned package, and cannot share one
+> policy across a fleet. Everything else is configuration.
+
+## 8. Honest limits
 
 - **Dependabot is not bad.** It grouped correctly where told, produced security PRs for
   all four direct and six transitive vulnerabilities, and needed zero installation. The
