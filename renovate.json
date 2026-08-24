@@ -15,7 +15,7 @@
     "                        from a community-maintained list. Zero per-package config."
   ],
   "dependencyDashboardTitle": "🤖 Renovate Dependency Dashboard",
-  "prConcurrentLimit": 10,
+  "prConcurrentLimit": 25,
   "prHourlyLimit": 0,
   "labels": [
     "dependencies",
@@ -24,15 +24,15 @@
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "description": [
-      "Security fixes are grouped per MANAGER, not per update type.",
-      "Splitting by updateType produced two internally inconsistent requirements.txt files:",
-      "one had flask 2.0.3 (which caps Jinja2<3.1) beside jinja2 3.1.6, the other had",
-      "flask 3.1.3 (which needs Jinja2>=3.1.2) beside jinja2 3.0.3. Both failed to resolve.",
-      "A pin-exact manifest has to move as a unit, so the manager is the correct grouping key."
+      "Security fixes are raised PER PACKAGE so each one is independently mergeable -",
+      "a CVE fix should never be blocked by an unrelated package in the same branch.",
+      "The single exception is pip: requirements.txt pins exact versions with no lockfile,",
+      "so a partial bump leaves it unresolvable (flask 2.0.3 caps Jinja2<3.1, flask 3.1.3",
+      "requires Jinja2>=3.1.2). Python therefore moves as one coherent unit."
     ],
     "enabled": true,
-    "groupName": "security ({{{manager}}})",
-    "groupSlug": "security-{{{manager}}}",
+    "groupName": "security ({{#if (equals manager \"pip_requirements\")}}python{{else}}{{{depName}}}{{/if}})",
+    "groupSlug": "security-{{#if (equals manager \"pip_requirements\")}}python{{else}}{{{depName}}}{{/if}}",
     "labels": [
       "security",
       "dependencies"
@@ -73,40 +73,7 @@
   ],
   "packageRules": [
     {
-      "description": "LANE 1 - everything non-major, one PR. Collapsed across npm/gomod/pip/docker/actions/regex: acceptable because one team owns this repo. Split by language again if ownership is split.",
-      "matchUpdateTypes": [
-        "patch",
-        "minor",
-        "pin",
-        "digest"
-      ],
-      "groupName": "all non-major",
-      "groupSlug": "all-non-major",
-      "schedule": [
-        "* 0-5 * * 1"
-      ],
-      "prPriority": 10,
-      "labels": [
-        "dependencies"
-      ]
-    },
-    {
-      "description": "Python has no lockfile and pins exact versions, so a partial bump leaves requirements.txt unresolvable. Every pip update - any type - moves as one group. npm and gomod do not need this because their lockfiles are regenerated on update.",
-      "matchManagers": [
-        "pip_requirements"
-      ],
-      "groupName": "python",
-      "groupSlug": "python",
-      "schedule": [
-        "* 0-5 * * 1"
-      ],
-      "labels": [
-        "dependencies",
-        "python"
-      ]
-    },
-    {
-      "description": "LANE 2 - npm devDependencies stay in their own PR because this one automerges and nobody reads it. Overrides Lane 1 for devDeps.",
+      "description": "npm devDependencies, non-major. Grouped and automerged - the lockfile is regenerated per update, so a partial bump always resolves.",
       "matchManagers": [
         "npm"
       ],
@@ -132,7 +99,75 @@
       ]
     },
     {
-      "description": "LANE 3 - baseline for every major: isolated, soaked 21 days, held behind a dashboard checkbox.",
+      "description": "npm production, non-major. Separate from devDependencies because this one is reviewed.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "dependencies"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "pin"
+      ],
+      "groupName": "npm production (non-major)",
+      "groupSlug": "npm-prod-non-major",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "prPriority": 10,
+      "labels": [
+        "dependencies",
+        "runtime"
+      ]
+    },
+    {
+      "description": "Go, non-major. go.sum is regenerated per update so splitting is safe.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest"
+      ],
+      "groupName": "go (non-major)",
+      "groupSlug": "go-non-major",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "prPriority": 10,
+      "labels": [
+        "dependencies",
+        "go"
+      ]
+    },
+    {
+      "description": "Docker base image, GitHub Actions and regex-managed tool versions, non-major.",
+      "matchManagers": [
+        "dockerfile",
+        "github-actions",
+        "custom.regex"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest"
+      ],
+      "groupName": "infra (non-major)",
+      "groupSlug": "infra-non-major",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "prPriority": 10,
+      "labels": [
+        "dependencies",
+        "infra"
+      ]
+    },
+    {
+      "description": "Every major gets its OWN PR. Grouping majors is what made the previous devDependency-majors PR unmergeable: typescript 7 collided with the typescript-eslint peer range and took seven unrelated updates down with it. Isolated, soaked 21 days, held behind a dashboard checkbox.",
       "matchUpdateTypes": [
         "major"
       ],
@@ -145,7 +180,7 @@
       ]
     },
     {
-      "description": "LANE 4 - ESCALATION. Once the version actually in use is over 3 months old the checkbox gate lifts by itself, so nothing rots in the queue unnoticed. Still reviewed, never automerged.",
+      "description": "ESCALATION - once the version in use is over 3 months old the checkbox gate lifts by itself, so nothing rots unnoticed in the queue.",
       "matchUpdateTypes": [
         "major"
       ],
@@ -160,25 +195,7 @@
       "prPriority": -5
     },
     {
-      "description": "LANE 4b - infra majors (Docker base image, GitHub Actions, regex-managed tool versions) collapse into ONE PR instead of one per action. Low blast radius and fully CI-verified, so grouping them is safe. Still inherits the approval gate from Lane 3 unless Lane 4 has escalated them.",
-      "matchManagers": [
-        "dockerfile",
-        "github-actions",
-        "custom.regex"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "groupName": "infra majors",
-      "groupSlug": "infra-major",
-      "labels": [
-        "dependencies",
-        "major",
-        "infra"
-      ]
-    },
-    {
-      "description": "LANE 5 - npm devDependency majors, grouped into ONE PR and automerged after a 30-day soak. Grouping majors is normally wrong; it is defensible here only because CI runs lint AND typecheck against them, so a breaking eslint or typescript major fails the build. Runtime deps are excluded: jsonwebtoken 8 to 9 typechecks clean and still changes signature-verification defaults at runtime.",
+      "description": "npm devDependency majors: one PR each, automerged after a 30-day soak. Isolated rather than grouped so one unmergeable major cannot block the others. CI runs lint and typecheck, so a breaking eslint or typescript major fails the build instead of merging green.",
       "matchManagers": [
         "npm"
       ],
@@ -189,8 +206,6 @@
         "major"
       ],
       "minimumReleaseAge": "30 days",
-      "groupName": "devDependency majors",
-      "groupSlug": "dev-major",
       "dependencyDashboardApproval": false,
       "automerge": true,
       "automergeType": "pr",
@@ -201,6 +216,28 @@
       ]
     },
     {
+      "description": "Python is the one ecosystem that must NOT be split. requirements.txt pins exact versions and has no lockfile, so every pip update - major included - travels in one group. This deliberately overrides the major-isolation rules above; coherence beats isolation when the resolver gets no say. Adopting pip-compile or uv would remove the need for this rule.",
+      "matchManagers": [
+        "pip_requirements"
+      ],
+      "groupName": "python",
+      "groupSlug": "python",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "python"
+      ]
+    },
+    {
+      "description": "typescript is capped because @typescript-eslint/parser 8.x declares peer typescript \">=4.8.4 <6.1.0\". Without the cap Renovate keeps raising a typescript 7 PR that can never pass npm ci. Suppressing an unresolvable update is better than shipping a permanently red PR. Remove when typescript-eslint supports v7.",
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<6.1.0"
+    },
+    {
       "description": "prPriority only - runtime-critical packages surface first when the concurrent limit bites.",
       "matchPackageNames": [
         "axios",
@@ -209,13 +246,6 @@
         "lodash"
       ],
       "prPriority": 5
-    },
-    {
-      "description": "typescript is capped because @typescript-eslint/parser 8.x declares peer typescript \">=4.8.4 <6.1.0\". Without this cap the grouped devDependency-majors PR fails npm ci with ERESOLVE and can never merge. Remove the cap once typescript-eslint supports TS 7.",
-      "matchPackageNames": [
-        "typescript"
-      ],
-      "allowedVersions": "<6.1.0"
     }
   ],
   "minimumReleaseAge": "7 days"
