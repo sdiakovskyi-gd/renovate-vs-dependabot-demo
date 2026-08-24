@@ -1,6 +1,6 @@
 # The `docker` manager updates this FROM line.
 # Pinned deliberately old so both bots have something to bump.
-FROM node:20.11-alpine
+FROM node:20.20-alpine
 
 # --- custom regex manager target -------------------------------------------
 # These ARGs are NOT image references, so no built-in manager understands them.
