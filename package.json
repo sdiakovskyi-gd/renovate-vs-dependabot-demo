@@ -18,7 +18,7 @@
     "lodash": "4.17.20"
   },
   "devDependencies": {
-    "@types/express": "4.17.17",
+    "@types/express": "5.0.6",
     "@types/jest": "29.5.0",
     "@types/jsonwebtoken": "8.5.9",
     "@types/lodash": "4.14.194",
