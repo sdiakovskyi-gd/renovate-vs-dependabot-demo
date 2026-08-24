@@ -35,7 +35,8 @@
     ],
     "schedule": [
       "at any time"
-    ]
+    ],
+    "minimumReleaseAge": null
   },
   "lockFileMaintenance": {
     "description": [
@@ -138,7 +139,7 @@
       ]
     },
     {
-      "description": "LANE 4 - majors are the one thing you must NOT group. dependencyDashboardApproval keeps them silent until you tick their checkbox: quiet without losing isolation. Grouping majors is exactly what broke Dependabot PRs #3 and #5.",
+      "description": "LANE 4 - majors held behind a human checkbox while still fresh, and soaked 21 days. Grouping majors is what broke Dependabot PRs #3 and #5, so they stay isolated.",
       "matchUpdateTypes": [
         "major"
       ],
@@ -147,6 +148,43 @@
       "labels": [
         "dependencies",
         "major"
+      ],
+      "minimumReleaseAge": "21 days"
+    },
+    {
+      "description": "LANE 5 - ESCALATION. Once the version we are actually running is more than 3 months old, stop waiting for someone to tick a box: open the PR automatically. Nothing can sit forgotten in the queue forever. Still no automerge - a human reviews it, they just no longer have to remember it exists.",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "matchCurrentAge": "> 3 months",
+      "dependencyDashboardApproval": false,
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "major",
+        "overdue"
+      ],
+      "prPriority": -5
+    },
+    {
+      "description": "LANE 6 - devDependency majors bump themselves after a 30-day soak. SAFE ONLY WHILE CI ACTUALLY EXERCISES THE TOOL BEING BUMPED: typecheck+build caught typescript 7 (TS5108). There is no lint step in ci.yml, so an eslint major would merge unverified - add one before relying on this for eslint.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": false,
+      "minimumReleaseAge": "30 days",
+      "automerge": true,
+      "automergeType": "pr",
+      "labels": [
+        "dependencies",
+        "major",
+        "automerge"
       ]
     },
     {
@@ -159,5 +197,6 @@
       ],
       "prPriority": 5
     }
-  ]
+  ],
+  "minimumReleaseAge": "7 days"
 }

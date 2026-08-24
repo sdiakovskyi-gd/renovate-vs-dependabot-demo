@@ -46,7 +46,9 @@ The four lanes:
 | 1 | npm `devDependencies`, patch/minor/pin | 1 grouped PR/week, **automerged** — nobody reviews it |
 | 2 | npm `dependencies`, patch/minor/pin | 1 grouped PR/week, reviewed |
 | 3 | `dockerfile` + `github-actions` + `custom.regex`, patch/minor/digest | 1 grouped PR/week |
-| 4 | **any major** | no PR at all until a human ticks a checkbox |
+| 4 | **any major**, recent | no PR until a human ticks a checkbox, after a 21-day soak |
+| 5 | **any major**, where the version in use is > 3 months old | checkbox gate lifts automatically — the PR opens itself, labelled `overdue` |
+| 6 | **devDependency majors** | automerged after a 30-day soak, if CI is green |
 
 Security updates deliberately sit outside all four — ungrouped, unscheduled, immediate.
 
@@ -60,6 +62,39 @@ retargets to 11.
 This is the answer to "we turned the bot off because of PR noise". You don't turn it
 off, you queue it. Dependabot's only options are *open the PR* or *`ignore` forever*.
 There is no holding pen.
+
+### Majors must not depend on anyone remembering
+
+A queue nobody drains is a queue that rots. `dependencyDashboardApproval` alone
+assumes a human ticks the box; in practice nobody does, and the estate quietly ages.
+
+The fix is not to automerge majors — that is precisely the Dependabot failure above.
+The fix is to make the gate **expire**:
+
+```json
+{
+  "matchUpdateTypes": ["major"],
+  "matchCurrentAge": "> 3 months",
+  "dependencyDashboardApproval": false,
+  "labels": ["dependencies", "major", "overdue"]
+}
+```
+
+While the version you are running is recent, majors wait behind the checkbox. Once it
+is more than three months old, the gate lifts by itself and the PR opens, labelled
+`overdue`. Nothing can be forgotten indefinitely, and nothing merges without review.
+Tune `> 3 months` to your risk appetite — `> 6 weeks` for a service, `> 1 year` for a
+library with a slow release cadence.
+
+`matchCurrentAge` measures the age of the version **currently in the repo**, not the
+age of the update, so it targets exactly the dependencies that have been neglected.
+
+**Where automerging a major is defensible:** devDependencies and tooling, after a long
+soak, *only when CI actually exercises the tool*. `tsc --noEmit` caught `typescript 7`
+here (`TS5108`), so a TypeScript major automerge is genuinely gated. A repo with no
+lint step would automerge an `eslint` major completely unverified. Runtime
+dependencies should never automerge on a major: `jsonwebtoken 8 → 9` typechecks
+cleanly and still changes signature-verification defaults at runtime.
 
 **Do not group majors to reduce noise.** That is precisely what put Dependabot PRs #3
 and #5 into a permanent red state here — a breaking major folded into a batch,
@@ -105,9 +140,10 @@ Six independent gates. Stack as many as the risk warrants.
 | # | Gate | Config | What it stops |
 |---|---|---|---|
 | 1 | Major/minor separation | `separateMajorMinor` (**on by default**) | breaking change riding inside a routine batch — the exact Dependabot failure here |
-| 2 | **Release soak** | `"minimumReleaseAge": "7 days"` | compromised or yanked releases. A malicious npm publish is usually pulled within hours; a 7-day soak means you never see it |
+| 2 | **Release soak** | `"minimumReleaseAge": "7 days"` globally, `21 days` for majors, `null` inside `vulnerabilityAlerts` | compromised or yanked releases. A malicious npm publish is usually pulled within hours; a 7-day soak means you never see it |
 | 3 | Skip unstable internals | `"internalChecksFilter": "strict"` | PRs for versions that fail Renovate's own pending/stability checks |
 | 4 | Human gate on majors | `dependencyDashboardApproval` | anything breaking reaching the PR queue unasked |
+| 4b | **Expiring gate** | `matchCurrentAge: "> 3 months"` | the opposite failure — a neglected major nobody ever ticks |
 | 5 | **Required CI + Xray check** | branch protection | any PR, from any lane, that fails build or policy scan |
 | 6 | Merge Confidence | badges free; **Workflows paid** | low-adoption releases. Workflows can hold a PR until the update reaches *High* confidence across Mend's corpus |
 
