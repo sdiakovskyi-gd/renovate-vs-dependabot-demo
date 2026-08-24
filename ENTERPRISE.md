@@ -508,6 +508,64 @@ Renovate config is a rule engine with matchers, inheritance and templates. For a
 handful of repos the difference is noise. For a fleet with a policy that must hold
 across ecosystems, it is the whole argument.
 
+### What happened when we tried to make Dependabot match
+
+`.github/dependabot.yml` in this repo is not a strawman. It is a deliberate,
+maximal attempt to reproduce every lane in `renovate.json`, plus
+`.github/workflows/dependabot-automerge.yml` to approximate the one thing the
+config format cannot express. What follows is the result of that attempt.
+
+#### Reached parity
+
+| Renovate | Dependabot equivalent | Verdict |
+|---|---|---|
+| grouped non-major, per manager | `groups` with `update-types` | ✅ equivalent |
+| grouped security | `groups` + `applies-to: security-updates` | ✅ equivalent |
+| security split major / non-major | two groups with `update-types` | ✅ equivalent |
+| Python moves as one unit | `patterns: ["*"]` with no `update-types` filter | ✅ equivalent |
+| peer-coupled toolchain family | `patterns: [eslint, "@typescript-eslint/*", typescript]` | ✅ equivalent, hand-maintained |
+| `minimumReleaseAge: "7 days"` / `"21 days"` for majors | `cooldown` with `semver-major-days` | ✅ equivalent, per ecosystem not per package |
+| `allowedVersions: "<6.1.0"` | `ignore: versions: [">=6.1.0"]` | ✅ equivalent |
+| weekly schedule, PR limits, labels | native | ✅ equivalent |
+| polyglot directories | one `updates:` block per ecosystem per directory | ✅ works, 5 blocks vs 0 extra lines |
+
+#### Reached with extra machinery
+
+| Renovate | Cost in Dependabot |
+|---|---|
+| `"automerge": true` on a packageRule | a 40-line workflow using `dependabot/fetch-metadata`, `pull_request_target`, `contents: write` + `pull-requests: write`, and re-deriving dependency type from metadata outputs. The policy now lives in a workflow instead of beside the update rules, and breaks silently if the action's outputs change |
+
+#### Could not be reproduced at all
+
+| Renovate | Why Dependabot cannot |
+|---|---|
+| **Dependency Dashboard** | no equivalent surface exists |
+| **`dependencyDashboardApproval`** | the only way to defer a major is `ignore: update-types: [version-update:semver-major]`, which **hides it entirely** — untracked, invisible, never resurfaced. Deferring and hiding are different things |
+| **`matchCurrentAge: "> 3 months"`** | no age-of-installed-version predicate exists, so an expiring gate cannot be built |
+| **`customManagers`** | `ARG PNPM_VERSION` and `ARG HADOLINT_VERSION` in the `Dockerfile` are invisible. No ecosystem owns them |
+| **`lockFileMaintenance`** | cannot refresh transitives without a manifest change |
+| **`replacements:all`** | cannot propose `dgrijalva/jwt-go` → `golang-jwt/jwt` |
+| **`prPriority`** | no ordering control |
+| **templated `groupName`** | `groups` takes literal patterns. "One PR per package, except Python, which moves as a unit" cannot be written; it has to be enumerated per package and re-edited whenever a dependency is added |
+| **shared presets** | no `extends`. This 130-line file is copied into every repository and maintained in N places |
+
+#### The honest scorecard
+
+Grouping is **not** where Renovate wins — Dependabot's grouping is genuinely good,
+and this config proves it. What the exercise actually surfaced:
+
+1. **Volume parity is achievable.** If your only goal is fewer PRs, Dependabot gets
+   you there. Do not build the business case on PR count.
+2. **Automerge costs a workflow**, and that workflow carries a
+   `pull_request_target` + `contents: write` footgun that has to be reviewed.
+3. **The gap is deferral, discoverability and reach.** No queue, no way to defer a
+   major without hiding it, no visibility into versions that are not in a manifest,
+   no lockfile refresh, no package replacement.
+4. **The gap compounds with repository count.** One repo: this file is fine. Two
+   hundred repos: it is 200 copies of a 130-line file, and every policy change is a
+   200-repo pull request. That is the argument, and it is the only one that does not
+   have a Dependabot answer.
+
 ### Tier 3 — do NOT claim these; they are parity
 
 - grouped version updates

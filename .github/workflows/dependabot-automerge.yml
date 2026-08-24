@@ -1,0 +1,55 @@
+# Dependabot has no automerge option. This workflow is what it costs to
+# approximate `"automerge": true` on a single Renovate packageRule.
+#
+# It is also strictly less capable than the Renovate equivalent:
+#   - the policy lives in a workflow, not beside the update rules
+#   - it cannot express "after a 30-day soak" (cooldown is per ecosystem)
+#   - it cannot express "devDependency majors only, but not runtime majors"
+#     without re-deriving dependency-type from metadata, as below
+#   - it needs write permissions on pull-requests and contents
+#   - it silently stops working if the metadata action changes its outputs
+#
+# SECURITY: pull_request_target is required because Dependabot PRs triggered by
+# `pull_request` receive a read-only token with no secrets, so `gh pr merge`
+# cannot work there. pull_request_target is safe HERE only because this workflow
+# never checks out the pull request's code - it reads metadata and calls the API.
+# Adding an actions/checkout of the PR ref would turn this into a repository
+# takeover primitive. Do not add one.
+name: Dependabot automerge
+
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch update metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Mirrors Renovate lane 1 (devDependency non-major -> automerge) and
+      # lane 7 (npm devDependency majors -> automerge). Runtime dependencies
+      # are never automerged, matching renovate.json.
+      - name: Enable automerge for devDependencies
+        if: steps.meta.outputs.dependency-type == 'direct:development'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Runtime dependencies: patch and minor only, never major.
+      - name: Enable automerge for runtime patch/minor
+        if: |
+          steps.meta.outputs.dependency-type == 'direct:production' &&
+          steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

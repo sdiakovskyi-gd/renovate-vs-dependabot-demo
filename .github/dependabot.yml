@@ -1,10 +1,17 @@
-# Dependabot, configured as well as Dependabot can be configured.
-# This is deliberately NOT a strawman: grouping, scheduling, limits and
-# separate security/version streams are all enabled. The README explains
-# what is still missing relative to renovate.json.
+# Dependabot configured as closely to renovate.json as the format allows.
+#
+# This file is deliberately maximal. Every lane in renovate.json that CAN be
+# expressed here IS expressed here, so the remaining difference is a capability
+# gap rather than a configuration gap. See ENTERPRISE.md section 7 for what is
+# still missing and why.
+#
+# Note the shape of the cost: renovate.json expresses all of this for every
+# ecosystem at once via matchers and templates. Here each ecosystem repeats the
+# same policy by hand, and every new dependency family means editing patterns.
 version: 2
 
 updates:
+  # ---------------------------------------------------------------- npm ----
   - package-ecosystem: npm
     directory: "/"
     schedule:
@@ -12,37 +19,61 @@ updates:
       day: monday
       time: "05:00"
       timezone: Europe/Kyiv
-    open-pull-requests-limit: 10
-    labels:
-      - dependencies
-      - dependabot
+    open-pull-requests-limit: 15
+    labels: [dependencies, dependabot]
     commit-message:
       prefix: "chore(deps)"
       prefix-development: "chore(deps-dev)"
       include: scope
+
+    # Equivalent of Renovate's minimumReleaseAge, and genuinely comparable:
+    # Dependabot's per-semver-level granularity is good. The difference is that
+    # Renovate sets this per packageRule, this is per ecosystem.
+    cooldown:
+      default-days: 7
+      semver-major-days: 21
+      semver-minor-days: 7
+      semver-patch-days: 7
+
+    # Renovate suppresses this with one rule: allowedVersions "<6.1.0".
+    # @typescript-eslint/parser 8.x declares peer typescript ">=4.8.4 <6.1.0",
+    # so typescript 7 can never resolve.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=6.1.0"]
+
     groups:
-      # Every group below had to be written by hand. Renovate gets the
-      # @typescript-eslint/* grouping for free from the `group:monorepos` preset.
-      eslint:
+      # Peer-coupled family. Renovate expresses this as one matchPackageNames
+      # rule that applies to every update type automatically; here the patterns
+      # are hand-maintained and must be repeated in the security group below.
+      eslint-typescript-toolchain:
         patterns:
           - "eslint"
           - "@typescript-eslint/*"
-      types:
-        patterns:
-          - "@types/*"
-      dev-minor-and-patch:
-        dependency-type: development
-        update-types:
-          - minor
-          - patch
-      prod-minor-and-patch:
-        dependency-type: production
-        update-types:
-          - minor
-          - patch
+          - "typescript"
 
-  # Renovate auto-discovers every manager in the tree from one config.
-  # Dependabot needs one block per ecosystem PER DIRECTORY, written by hand.
+      npm-development-non-major:
+        dependency-type: development
+        update-types: [minor, patch]
+
+      npm-production-non-major:
+        dependency-type: production
+        update-types: [minor, patch]
+
+      # Security updates are NOT grouped by the rules above unless applies-to
+      # says so. Split major from non-major so a breaking security fix cannot
+      # block the safe ones.
+      npm-security-non-major:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+      npm-security-major:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types: [major]
+
+  # ---------------------------------------------------------------- go ----
   - package-ecosystem: gomod
     directory: "/services/go-api"
     schedule:
@@ -51,16 +82,21 @@ updates:
       time: "05:00"
       timezone: Europe/Kyiv
     open-pull-requests-limit: 10
-    labels:
-      - dependencies
-      - dependabot
-      - go
+    labels: [dependencies, dependabot, go]
+    cooldown:
+      default-days: 7
+      semver-major-days: 21
     groups:
-      go-minor-and-patch:
-        update-types:
-          - minor
-          - patch
+      go-non-major:
+        update-types: [minor, patch]
+      go-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
+  # ------------------------------------------------------------- python ----
+  # requirements.txt pins exact versions and has no lockfile, so a partial bump
+  # leaves it unresolvable. Everything moves as one group, majors included -
+  # the equivalent of Renovate's separateMajorMinor:false on the pip rule.
   - package-ecosystem: pip
     directory: "/services/py-worker"
     schedule:
@@ -68,17 +104,19 @@ updates:
       day: monday
       time: "05:00"
       timezone: Europe/Kyiv
-    open-pull-requests-limit: 10
-    labels:
-      - dependencies
-      - dependabot
-      - python
+    open-pull-requests-limit: 5
+    labels: [dependencies, dependabot, python]
+    cooldown:
+      default-days: 7
+      semver-major-days: 21
     groups:
-      python-minor-and-patch:
-        update-types:
-          - minor
-          - patch
+      python-all:
+        patterns: ["*"]
+      python-security-all:
+        applies-to: security-updates
+        patterns: ["*"]
 
+  # ------------------------------------------------------------- docker ----
   - package-ecosystem: docker
     directory: "/"
     schedule:
@@ -86,11 +124,15 @@ updates:
       day: monday
       time: "05:00"
       timezone: Europe/Kyiv
-    labels:
-      - dependencies
-      - dependabot
-      - docker
+    labels: [dependencies, dependabot, docker]
+    cooldown:
+      default-days: 7
+      semver-major-days: 21
+    groups:
+      docker-all:
+        patterns: ["*"]
 
+  # ------------------------------------------------------ github-actions ----
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
@@ -98,7 +140,10 @@ updates:
       day: monday
       time: "05:00"
       timezone: Europe/Kyiv
-    labels:
-      - dependencies
-      - dependabot
-      - github-actions
+    labels: [dependencies, dependabot, github-actions]
+    cooldown:
+      default-days: 7
+      semver-major-days: 21
+    groups:
+      actions-all:
+        patterns: ["*"]
