@@ -6,6 +6,8 @@ input instead of comparing marketing pages.
 
 - Dependabot: [`.github/dependabot.yml`](.github/dependabot.yml) — configured *well*, not as a strawman.
 - Renovate: [`renovate.json`](renovate.json) — annotated inline via `description` keys.
+- Results of the live run: [`RESULTS.md`](RESULTS.md)
+- Corporate evaluation, Artifactory/Xray integration and pricing: [`ENTERPRISE.md`](ENTERPRISE.md)
 
 > **Honesty note.** Dependabot in 2026 is not the tool it was in 2022. It has grouped
 > updates, cooldowns, per-ecosystem schedules, PR limits, and it does bump transitive npm
