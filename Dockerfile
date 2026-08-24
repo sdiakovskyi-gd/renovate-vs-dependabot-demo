@@ -9,7 +9,7 @@ FROM node:20.11-alpine
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=8.6.0
 # renovate: datasource=github-releases depName=hadolint packageName=hadolint/hadolint
-ARG HADOLINT_VERSION=2.12.0
+ARG HADOLINT_VERSION=2.15.1
 # ---------------------------------------------------------------------------
 
 WORKDIR /app
