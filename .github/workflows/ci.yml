@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  node:
     runs-on: ubuntu-latest
     steps:
       # Pinned to v4 on purpose: gives the github-actions manager
@@ -21,5 +21,39 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      # The lint step is what makes automerging an eslint major honest:
+      # without it a breaking eslint upgrade would merge on a green build.
+      - run: npm run lint
       - run: npm run build
       - run: npm test
+
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/go-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/go-api/go.mod
+          # go.sum is not committed, so there is nothing to key a cache on.
+          cache: false
+      # go.sum is not committed, so resolve it here. In a real repo you would
+      # commit go.sum and run `go mod verify` instead.
+      - run: go mod tidy
+      - run: go vet ./...
+      - run: go build ./...
+
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/py-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -c "import worker; print('py-worker imports OK')"

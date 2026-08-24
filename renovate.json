@@ -117,6 +117,48 @@
       ]
     },
     {
+      "description": "LANE 2b - Go non-major. Its own group because a different team owns it: grouping should follow ownership boundaries, not just reduce the count.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest"
+      ],
+      "groupName": "go (non-major)",
+      "groupSlug": "go-non-major",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "go"
+      ]
+    },
+    {
+      "description": "LANE 2c - Python non-major. pip_requirements here; poetry/pep621/pip-compile would be matched the same way.",
+      "matchManagers": [
+        "pip_requirements",
+        "poetry",
+        "pep621",
+        "pip-compile"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "groupName": "python (non-major)",
+      "groupSlug": "python-non-major",
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "python"
+      ]
+    },
+    {
       "description": "LANE 3 - non-npm managers have no depType, so Lanes 1-2 cannot match them. Without this rule Docker/Actions/regex updates stay as individual PRs. Most common grouping mistake.",
       "matchManagers": [
         "dockerfile",
@@ -167,7 +209,7 @@
       "prPriority": -5
     },
     {
-      "description": "LANE 6 - devDependency majors bump themselves after a 30-day soak. SAFE ONLY WHILE CI ACTUALLY EXERCISES THE TOOL BEING BUMPED: typecheck+build caught typescript 7 (TS5108). There is no lint step in ci.yml, so an eslint major would merge unverified - add one before relying on this for eslint.",
+      "description": "LANE 6 - npm devDependency majors bump themselves after a 30-day soak. Now genuinely gated: ci.yml runs typecheck AND lint, so a breaking typescript or eslint major fails the build instead of merging green. Runtime dependencies are deliberately excluded - jsonwebtoken 8 to 9 typechecks clean and still changes signature-verification defaults at runtime.",
       "matchManagers": [
         "npm"
       ],

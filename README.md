@@ -22,11 +22,27 @@ A small Express API that genuinely uses every vulnerable dependency, so updates 
 updates and not dead weight in `package.json`.
 
 ```
-src/index.ts    Express server, three routes
-src/auth.ts     jsonwebtoken — sign/verify session tokens
-src/client.ts   axios + lodash — upstream HTTP client
-Dockerfile      old node base image + ARG tool versions (two different managers)
+src/index.ts                     Express server, three routes
+src/auth.ts                      jsonwebtoken — sign/verify session tokens
+src/client.ts                    axios + lodash — upstream HTTP client
+services/go-api/                 Go: gin + yaml.v2 + abandoned dgrijalva/jwt-go
+services/py-worker/              Python: flask + requests + urllib3 + jinja2
+Dockerfile                       old node base image + ARG tool versions
+.github/workflows/ci.yml         typecheck + lint + build for all three languages
 ```
+
+### Polyglot: one config, four managers
+
+`services/go-api` and `services/py-worker` exist to show manager auto-discovery.
+Renovate finds `gomod`, `pip_requirements`, `npm`, `dockerfile`, `github-actions` and
+the custom regex manager from **one** `renovate.json`, with no directory list.
+`.github/dependabot.yml` needs a separate `updates:` block per ecosystem **per
+directory** — five hand-written blocks for the same repo.
+
+The Go module also carries `github.com/dgrijalva/jwt-go`, which is abandoned.
+Renovate's `replacements:all` preset (part of `config:recommended`) proposes swapping
+it for `golang-jwt/jwt` — a package *replacement*, not a version bump. Dependabot has
+no equivalent: it can only offer newer versions of a package you already depend on.
 
 ### Seeded vulnerabilities ("before" state)
 
