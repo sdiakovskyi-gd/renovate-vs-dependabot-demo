@@ -119,11 +119,24 @@ group. The real fix in a production repo is to adopt a resolver — `pip-compile
 `uv` or Poetry — so Renovate regenerates a full lock and partial bumps stop being
 representable.
 
-**Never group majors.** Grouping a breaking major into a batch is what leaves
+**Isolate independent majors; group peer-coupled ones.** "Never group majors" is too
+blunt. `eslint`, `@typescript-eslint/*` and `typescript` peer-depend on each other, so
+isolating their majors made *every one of them* unmergeable alone: eslint 10 conflicts
+with the installed `@typescript-eslint 5.62`, and typescript 6 falls outside its peer
+range `">=4.8.4 <5.1.0"`. All three resolve fine **together**. The grouping boundary is
+the peer-dependency graph, not the update type.
+
+**Never group unrelated majors.** Grouping a breaking major into a batch is what leaves
 Dependabot PRs #3 and #5 permanently red in `RESULTS.md`, and it did the same to a
 Renovate group here: `typescript 7.0.2` collided with
 `peer typescript ">=4.8.4 <6.1.0"` from `@typescript-eslint/parser@8.65.0` and took
 seven unrelated updates down with it. Isolate majors and gate them instead.
+
+**A red PR is not always the dependency's fault.** When a grouped or isolated update
+fails `npm ci` with `EUSAGE`/`ERESOLVE`, check whether Renovate managed to regenerate
+the lockfile at all. If `package.json` moved and `package-lock.json` did not, the
+lockfile step itself hit a peer conflict and gave up — the manifest change was
+committed alone. That is a grouping problem, not a broken release.
 
 **Suppress updates that cannot resolve.** When an ecosystem is not ready — TypeScript
 7 ahead of typescript-eslint — `allowedVersions` stops the PR being raised at all.

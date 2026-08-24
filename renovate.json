@@ -232,6 +232,20 @@
       "separateMajorMinor": false
     },
     {
+      "description": "PEER-COUPLED FAMILY. eslint, @typescript-eslint/* and typescript peer-depend on each other, so isolating their majors makes every one of them unmergeable on its own: eslint 10 conflicts with the installed @typescript-eslint 5.62, and typescript 6 conflicts with its peer range \">=4.8.4 <5.1.0\". Verified that eslint 10 + @typescript-eslint 8.65 + typescript 6.0.3 resolve together. Isolate INDEPENDENT majors; group COUPLED ones.",
+      "matchPackageNames": [
+        "eslint",
+        "@typescript-eslint/**",
+        "typescript"
+      ],
+      "groupName": "eslint + typescript toolchain",
+      "groupSlug": "eslint-toolchain",
+      "labels": [
+        "dependencies",
+        "linting"
+      ]
+    },
+    {
       "description": "typescript is capped because @typescript-eslint/parser 8.x declares peer typescript \">=4.8.4 <6.1.0\". Without the cap Renovate keeps raising a typescript 7 PR that can never pass npm ci. Suppressing an unresolvable update is better than shipping a permanently red PR. Remove when typescript-eslint supports v7.",
       "matchPackageNames": [
         "typescript"
