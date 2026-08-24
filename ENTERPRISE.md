@@ -449,7 +449,7 @@ The list below is what survives it.
 | **A queue you control** | Dependency Dashboard + `dependencyDashboardApproval` | Issue #27. Updates exist, are tracked, and raise no PR until a checkbox is ticked. Dependabot's only states are *open a PR* or *`ignore` forever* |
 | **Updating non-manifest files** | `customManagers` regex | PRs #17/#18 update `ARG PNPM_VERSION` and `ARG HADOLINT_VERSION` in the `Dockerfile`. Dependabot updated the `FROM` line and **ignored both ARGs entirely** |
 | **Lockfile maintenance** | `lockFileMaintenance` | Scheduled PR that refreshes transitives with **no manifest change**. Dependabot only moves a transitive when an advisory names it |
-| **Package replacement** | `replacements:all` preset | `services/go-api` pins the abandoned `dgrijalva/jwt-go`; Renovate proposes swapping it for `golang-jwt/jwt`. Dependabot can only offer newer versions of a package you already depend on |
+| **Package replacement** | `replacementName` / `replacementVersion` in `packageRules`, plus a curated preset list | Mechanism-only claim. Dependabot has no equivalent at any configuration. **But do not demo this with Go:** `replacements:all` ships 68 presets, **none** covering the `go` datasource, so the abandoned `dgrijalva/jwt-go` in `services/go-api` produced no proposal from either bot. Renovate can express the swap via a hand-written rule; out of the box it did nothing here |
 | **Shareable config presets** | `"extends": ["local>myorg/renovate-config"]` | One preset repo governs 200 repos. Dependabot has no preset mechanism — org policy means 200 copies of YAML kept in sync by hand |
 | **PR priority ordering** | `prPriority` | Runtime packages surface first when limits bite. Dependabot has no ordering control |
 | **Age-based rules** | `matchCurrentAge: "> 3 months"` | The expiring approval gate: majors wait behind a checkbox while fresh, then open by themselves once the version in use is stale. No Dependabot equivalent |
@@ -534,6 +534,22 @@ config format cannot express. What follows is the result of that attempt.
 | Renovate | Cost in Dependabot |
 |---|---|
 | `"automerge": true` on a packageRule | a 40-line workflow using `dependabot/fetch-metadata`, `pull_request_target`, `contents: write` + `pull-requests: write`, and re-deriving dependency type from metadata outputs. The policy now lives in a workflow instead of beside the update rules, and breaks silently if the action's outputs change |
+
+#### Ecosystem coverage — verified in this repo
+
+Grouping is ecosystem-agnostic. The same `groups` keys worked unchanged for Go and
+Python here: PR #34 grouped two Go modules, PR #37 grouped two Python packages. The
+same syntax applies to `bundler`, `maven`, `gradle`, `cargo` and the rest.
+
+Two ecosystem-specific findings worth knowing before promising parity:
+
+- **Go security updates.** GitHub raised 7 Dependabot alerts for `gomod` in this repo
+  (`gin`, `yaml.v2`, `jwt-go`), but Dependabot opened **no security PR** for any of
+  them — `gin` and `yaml.v2` were addressed incidentally by the version-update group.
+  Renovate raised both as explicit `[security]` PRs (#64, #65) from its OSV feed.
+- **Python manager breadth.** Dependabot covers `pip`, `pipenv`, `poetry` and
+  `pip-compile`. Renovate additionally covers `pep621`, `uv`, `pdm`, `hatch` and
+  `pixi`. If the estate uses `uv`, this is a hard blocker, not a preference.
 
 #### Could not be reproduced at all
 
