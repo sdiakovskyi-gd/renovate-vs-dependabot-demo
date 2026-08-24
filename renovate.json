@@ -144,6 +144,24 @@
       "prPriority": -5
     },
     {
+      "description": "LANE 4b - infra majors (Docker base image, GitHub Actions, regex-managed tool versions) collapse into ONE PR instead of one per action. Low blast radius and fully CI-verified, so grouping them is safe. Still inherits the approval gate from Lane 3 unless Lane 4 has escalated them.",
+      "matchManagers": [
+        "dockerfile",
+        "github-actions",
+        "custom.regex"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "groupName": "infra majors",
+      "groupSlug": "infra-major",
+      "labels": [
+        "dependencies",
+        "major",
+        "infra"
+      ]
+    },
+    {
       "description": "LANE 5 - npm devDependency majors, grouped into ONE PR and automerged after a 30-day soak. Grouping majors is normally wrong; it is defensible here only because CI runs lint AND typecheck against them, so a breaking eslint or typescript major fails the build. Runtime deps are excluded: jsonwebtoken 8 to 9 typechecks clean and still changes signature-verification defaults at runtime.",
       "matchManagers": [
         "npm"
