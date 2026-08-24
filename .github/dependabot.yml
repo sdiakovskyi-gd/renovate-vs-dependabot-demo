@@ -147,3 +147,5 @@ updates:
     groups:
       actions-all:
         patterns: ["*"]
+
+# Touched to force a fresh Dependabot version-update check.
