@@ -1,8 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    // node16 rather than the legacy node10 resolution: TypeScript 6 errors on
+    // node10 (TS5107) and 7.0 removes it. Emit is still CommonJS because
+    // package.json has no "type": "module".
+    "module": "node16",
+    "moduleResolution": "node16",
     "lib": ["ES2022"],
     "rootDir": "src",
     "outDir": "dist",
