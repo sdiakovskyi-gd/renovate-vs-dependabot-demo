@@ -23,7 +23,7 @@
     "@types/jsonwebtoken": "9.0.10",
     "@types/lodash": "4.17.25",
     "@types/node": "26.4.0",
-    "@typescript-eslint/eslint-plugin": "5.62.0",
+    "@typescript-eslint/eslint-plugin": "8.68.0",
     "@typescript-eslint/parser": "5.62.0",
     "eslint": "10.9.1",
     "jest": "30.4.2",
