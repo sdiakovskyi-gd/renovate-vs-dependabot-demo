@@ -9,6 +9,15 @@
 #   - it needs write permissions on pull-requests and contents
 #   - it silently stops working if the metadata action changes its outputs
 #
+# !! `gh pr merge --auto` IS NOT A CI GATE !!
+# Auto-merge waits only for REQUIRED status checks defined by branch protection.
+# With no protection rule on the base branch there is nothing to wait for, so the
+# PR merges immediately regardless of CI. This exact workflow merged PR #79
+# (eslint 8.57.1 -> 10.9.1) nine seconds after it opened, while node=FAILURE, and
+# broke main. Branch protection requiring the node/go/python checks is therefore a
+# HARD PREREQUISITE for this workflow, not an optional hardening step.
+# Renovate needs no such prerequisite: its automerge waits on branch status itself.
+#
 # SECURITY: pull_request_target is required because Dependabot PRs triggered by
 # `pull_request` receive a read-only token with no secrets, so `gh pr merge`
 # cannot work there. pull_request_target is safe HERE only because this workflow
