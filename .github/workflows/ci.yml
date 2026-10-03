@@ -34,7 +34,7 @@ jobs:
         working-directory: services/go-api
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: services/go-api/go.mod
           # go.sum is not committed, so there is nothing to key a cache on.
