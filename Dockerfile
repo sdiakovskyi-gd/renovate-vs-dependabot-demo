@@ -1,6 +1,6 @@
 # The `docker` manager updates this FROM line.
 # Pinned deliberately old so both bots have something to bump.
-FROM node:20.11-alpine
+FROM node:20.20-alpine
 
 # --- custom regex manager target -------------------------------------------
 # These ARGs are NOT image references, so no built-in manager understands them.
@@ -9,7 +9,7 @@ FROM node:20.11-alpine
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=8.6.0
 # renovate: datasource=github-releases depName=hadolint packageName=hadolint/hadolint
-ARG HADOLINT_VERSION=2.12.0
+ARG HADOLINT_VERSION=2.15.1
 # ---------------------------------------------------------------------------
 
 WORKDIR /app
